@@ -4,23 +4,24 @@
 ##  Thanks to owen.pragel and anverhousseini from JamfNation
 #### Edited 7/19/19 to address Slack releases.json removal
 #### Edited 8/1/19 to address copy issues and point to Slack's RSS feed for latest version
+#### Edited 6/7/23 to allow for later versions of Slack and download the universal binary
 
-#To kill Slack, Input "kill" in Parameter 4 
+#To kill Slack, Input "kill" in Parameter 4
 killSlack="$4"
 
 #Find latest Slack version / Pulls Version from Slack for Mac download page
-currentSlackVersion=$(/usr/bin/curl -sL 'https://slack.com/release-notes/mac/rss' | grep -o "Slack-[0-9]\.[0-9]\.[0-9]"  | cut -c 7-11 | head -n 1)
+currentSlackVersion=$(/usr/bin/curl -sL 'https://slack.com/release-notes/mac/rss' | grep -o "[0-9]\{1\}.[0-9]\{2\}.[0-9]\{3\}"  | head -n 1 )
 
 #Install Slack function
 install_slack() {
-	
+
 #Slack download variables
-slackDownloadUrl=$(curl "https://slack.com/ssb/download-osx" -s -L -I -o /dev/null -w '%{url_effective}')
+slackDownloadUrl=$(curl "https://slack.com/ssb/download-osx-universal" -s -L -I -o /dev/null -w '%{url_effective}')
 dmgName=$(printf "%s" "${slackDownloadUrl[@]}" | sed 's@.*/@@')
 slackDmgPath="/tmp/$dmgName"
 
-	
-#Kills slack if "kill" in Parameter 4 
+
+#Kills slack if "kill" in Parameter 4
 if [ "$killSlack" = "kill" ];
 then
 pkill Slack*
@@ -32,12 +33,12 @@ fi
 curl -L -o "$slackDmgPath" "$slackDownloadUrl"
 
 #Mounts the .dmg
-hdiutil attach -nobrowse $slackDmgPath
+hdiutil attach -nobrowse $slackDmgPath -mountpoint "/Volumes/Slack"
 
 #Checks if Slack is still running
 if pgrep '[S]lack' && [ "$killSlack" != "kill" ]; then
 	printf "Error: Slack is currently running!\n"
-		
+
 elif pgrep '[S]lack' && [ "$killSlack" = "kill" ]; then
 	pkill Slack*
 	sleep 10
@@ -46,17 +47,15 @@ elif pgrep '[S]lack' && [ "$killSlack" = "kill" ]; then
 		exit 409
 	fi
 fi
-    
+
 # Remove the existing Application
 	rm -rf /Applications/Slack.app
 
 #Copy the update app into applications folder
-	ditto -rsrc /Volumes/Slack*/Slack.app /Applications/Slack.app
+	ditto -rsrc /Volumes/Slack/Slack.app /Applications/Slack.app
 
 #Unmount and eject dmg
-	mountName=$(diskutil list | grep Slack | awk '{ print $3 }')
-	umount -f /Volumes/Slack*/
-	diskutil eject $mountName
+	umount -f /Volumes/Slack/
 
 #Clean up /tmp download
 	rm -rf "$slackDmgPath"
@@ -78,13 +77,13 @@ if [ ! -d "/Applications/Slack.app" ]; then
 elif [ "$currentSlackVersion" != `defaults read "/Applications/Slack.app/Contents/Info.plist" "CFBundleShortVersionString"` ]; then
 	install_slack
 	assimilate_ownership
-	
+
 #If Slack is installed and up to date just adjust permissions
 elif [ -d "/Applications/Slack.app" ]; then
 		localSlackVersion=$(defaults read "/Applications/Slack.app/Contents/Info.plist" "CFBundleShortVersionString")
 		if [ "$currentSlackVersion" = "$localSlackVersion" ]; then
-			printf "Slack is already up-to-date. Version: %s" "$localSlackVersion"		
-assimilate_ownership			
+			printf "Slack is already up-to-date. Version: %s" "$localSlackVersion"
+assimilate_ownership
 			exit 0
 	fi
 fi
